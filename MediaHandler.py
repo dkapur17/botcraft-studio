@@ -7,7 +7,7 @@ from typing import List, Dict
 import tempfile
 from uuid import uuid4
 from pydub import AudioSegment
-from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
+from azure.storage.blob import BlobServiceClient, generate_container_sas, BlobSasPermissions
 from datetime import datetime, timedelta
 
 class MediaHandler:
@@ -16,28 +16,23 @@ class MediaHandler:
         self.speechServiceKey = os.environ["SPEECH_KEY"]
         self.speechServiceRegion = os.environ["SPEECH_REGION"]
         
-    def generateSasUrlForAllBlobs(self, containerClient):
+    def generateSasUrlForContainer(self, containerClient):
         sasDuration = timedelta(hours = 1)
         sasPermissions = BlobSasPermissions(read = True, list = True)
         sasStartTime = datetime.utcnow()
         
-        blobsList = containerClient.list_blobs()
-        sasUrls = []
-        
-        for blob in blobsList:
-            sasToken = generate_blob_sas(
-                account_name = self.blobClient.account_name,
-                container_name=containerClient.container_name,
-                blob_name=blob.name,
-                account_key = self.blobClient.credential.account_key,
-                permission=sasPermissions,
-                start = sasStartTime,
-                expiry = sasStartTime + sasDuration
-            )
-            sasUrl = f"{containerClient.url}/{blob.name}?{sasToken}"
-            sasUrls.append(sasUrl)
+
+        sasToken = generate_container_sas(
+            account_name = self.blobClient.account_name,
+            container_name=containerClient.container_name,
+            account_key = self.blobClient.credential.account_key,
+            permission=sasPermissions,
+            start = sasStartTime,
+            expiry = sasStartTime + sasDuration
+        )
+        sasUrl = f"{containerClient.url}?{sasToken}"
             
-        return sasUrls
+        return sasUrl
         
     def setAudioParameters(self, audioFile: object)->object:
         """
@@ -87,25 +82,26 @@ class MediaHandler:
                 audioChunk.export(tempFile, format = 'wav')
                 blobClient.upload_blob(tempFile)
         
-        recordingsBlobUriList = self.generateSasUrlForAllBlobs(containerClient = tempContainerClient)
+        tempContainerUri = self.generateSasUrlForContainer(containerClient = tempContainerClient)
         # Perform Speech to text Batch transcription
         fileName = fileName if fileName is not None else os.path.basename(mediaFile.name)
-        transcriptionList = self.transcribe(recordingsBlobUriList = recordingsBlobUriList, name = f"{fileName}_Transcription", description = f"Transcription of {fileName} chunked into lengths of duartion {intervalLength} seconds.")
+        transcriptionList = self.transcribe(recordingsBlobContainerUri = tempContainerUri, name = f"{fileName}_Transcription", description = f"Transcription of {fileName} chunked into lengths of duartion {intervalLength} seconds.")
         transcriptionOfChunks = self.postProcessTranscriptionResults(originalAudioFileName = fileName, transcriptions = transcriptionList)
         # Delete the temporary client
         tempContainerClient.delete_container()
         return transcriptionOfChunks
         
-    def postProcessTranscriptionResults(self, originalAudioFileName: str, transcriptions: List[Dict]) -> List[str]:
+    def postProcessTranscriptionResults(self, originalAudioFileName: str, transcriptions: List[Dict[str, dict]]) -> List[str]:
         textOfAudioChunks = []
-        for i, transcription in enumerate(transcriptions):
-            header = f"This is the transcription of {originalAudioFileName} for its segment from minute {i} to minute {i+1}."
-            transcriptionText = transcription["combinedRecognizedPhrases"][0]["display"]
+        for transcription in transcriptions:
+            chunkName = transcription["AudioFileName"].replace("_", " ").lower()
+            header = f"This is the transcription of {originalAudioFileName} for its segment from {chunkName}."
+            transcriptionText = transcription["Transcription"]["combinedRecognizedPhrases"][0]["display"]
             chunkText = f"{header}\n\n{transcriptionText}"
             textOfAudioChunks.append(chunkText)
         return textOfAudioChunks            
             
-    def transcribe(self, recordingsBlobUriList, name, description):
+    def transcribe(self, recordingsBlobContainerUri, name, description):
         # configure API key authorization: subscription_key
         configuration = swagger_client.Configuration()
         configuration.api_key["Ocp-Apim-Subscription-Key"] = self.speechServiceKey
@@ -128,7 +124,7 @@ class MediaHandler:
         properties.diarization = swagger_client.DiarizationProperties(
             swagger_client.DiarizationSpeakersProperties(min_count=1, max_count=5))
         
-        transcriptionDefinition = self.transcribeFromSingleBlob(recordingsBlobUriList, properties, name, description)        
+        transcriptionDefinition = self.transcribeFromContainer(recordingsBlobContainerUri, properties, name, description)        
         createdTranscription, status, headers = api.transcriptions_create_with_http_info(transcription=transcriptionDefinition)
 
         # get the transcription Id from the location URI
@@ -152,12 +148,11 @@ class MediaHandler:
                     resultsUrl = fileData.links.content_url
                     results = requests.get(resultsUrl).content.decode('utf-8')
                     #print(f"Results for {audioFileName}:\n{results.content.decode('utf-8')}")
-                    TranscriptionResults.append(json.loads(results))
+                    TranscriptionResults.append({"AudioFileName": audioFileName, "Transcription": json.loads(results)})
             elif transcription.status == "Failed":
                 print(f"Transcription failed: {transcription.properties.error.message}")
 
-        return TranscriptionResults
-        
+        return TranscriptionResults        
         
     def transcribeFromSingleBlob(self, uri, properties, name, description):
         """
@@ -174,6 +169,21 @@ class MediaHandler:
         )
         return transcription_definition
     
+    def transcribeFromContainer(self, uri, properties, name, description):
+        """
+        Transcribe all files in the container located at `uri` using the settings specified in `properties`
+        using the base model for the specified locale.
+        """
+        transcription_definition = swagger_client.Transcription(
+            display_name=name,
+            description=description,
+            locale="en-us",
+            content_container_url=uri,
+            properties=properties
+        )
+
+        return transcription_definition
+
     def paginate(self, api, paginatedObject):
         """
         The autogenerated client does not support pagination. This function returns a generator over
