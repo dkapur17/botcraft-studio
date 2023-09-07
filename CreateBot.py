@@ -146,7 +146,11 @@ class CreateBot:
         return textContent
     
     def uploadText(self, botName, botId, src, content, containerClient):
-        containerClient.upload_blob(name=f'{botName}-{botId}/{src.name}.txt', data=content, overwrite=True)
+        if type(content) == list:
+            for i, document in enumerate(content):
+                containerClient.upload_blob(name=f'{botName}-{botId}/{src.name}_{i}.txt', data=document, overwrite=True)
+        else:
+            containerClient.upload_blob(name=f'{botName}-{botId}/{src.name}.txt', data=content, overwrite=True)
 
 
     def vectorizeAndPush(self, text):
@@ -171,10 +175,10 @@ class CreateBot:
         return 'Yet to implement word file'
     
     def _processVideo(self, videoFile):
-        return self.mediaHandler.videoToTranscript(videoFile)
+        return self.mediaHandler.mediaToTranscript(videoFile, src = 'video')
 
     def _processAudio(self, audioFile):
-        return self.mediaHandler.audioToTranscript(audioFile)
+        return self.mediaHandler.mediaToTranscript(audioFile, src = 'audio')
 
     def _processText(self, textFile):
         with TempFilePath(textFile) as tempFilePath:

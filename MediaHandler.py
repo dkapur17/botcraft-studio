@@ -7,7 +7,8 @@ from typing import List, Dict
 import tempfile
 from uuid import uuid4
 from pydub import AudioSegment
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
+from datetime import datetime, timedelta
 
 class MediaHandler:
     def __init__(self, blobClient = None):
@@ -15,15 +16,38 @@ class MediaHandler:
         self.speechServiceKey = os.environ["SPEECH_KEY"]
         self.speechServiceRegion = os.environ["SPEECH_REGION"]
         
-    def setAudioParameters(audioFile: object)->object:
+    def generateSasUrlForAllBlobs(self, containerClient):
+        sasDuration = timedelta(hours = 1)
+        sasPermissions = BlobSasPermissions(read = True, list = True)
+        sasStartTime = datetime.utcnow()
+        
+        blobsList = containerClient.list_blobs()
+        sasUrls = []
+        
+        for blob in blobsList:
+            sasToken = generate_blob_sas(
+                account_name = self.blobClient.account_name,
+                container_name=containerClient.container_name,
+                blob_name=blob.name,
+                account_key = self.blobClient.credential.account_key,
+                permission=sasPermissions,
+                start = sasStartTime,
+                expiry = sasStartTime + sasDuration
+            )
+            sasUrl = f"{containerClient.url}/{blob.name}?{sasToken}"
+            sasUrls.append(sasUrl)
+            
+        return sasUrls
+        
+    def setAudioParameters(self, audioFile: object)->object:
         """
         The Batch transcription of Azure Speech Service requires the audio file to be a 16kHz frame rate mono audio file
         """
-        audioFile.set_channels(1)
-        audioFile.set_frame_rate(16000)
+        audioFile = audioFile.set_channels(1)
+        audioFile = audioFile.set_frame_rate(16000)
         return audioFile
     
-    def chunkAudioIntoIntervals(audio: object, intervalLength: int = 60)->list:
+    def chunkAudioIntoIntervals(self, audio: object, intervalLength: int = 60)->list:
         """
         Chunks the input audio into equal intervals of the duration intervalLength.
         The intervalLength is the duration of each file in seconds.
@@ -39,52 +63,49 @@ class MediaHandler:
             startTime = endTime            
         return audioSegments
         
-    def extractAudioFromVideo(self, videoFile: object):
-        audio = AudioSegment.from_file(videoFile, format = 'mp4')
+    def extractAudioFromMedia(self, mediaFile: object, src = 'video'):
+        if src == 'video':
+            audio = AudioSegment.from_file(mediaFile, format = 'mp4')
+        else:
+            audio = AudioSegment.from_file(mediaFile, format = 'wav')
         return audio
     
-    def videoToTranscript(self, videoFile: object, intervalLength = 60):
-        audio = self.extractAudioFromVideo(videoFile)
-        return self.audioToTranscript(audio, intervalLength)
     
-    def audioToTranscript(self, audioFile: object, intervalLength = 60):
-        audio = self.setAudioParameters(audioFile)
+    def mediaToTranscript(self, mediaFile: object, intervalLength = 60, fileName = None, src = 'video'):
+        audio = self.extractAudioFromMedia(mediaFile, src)
+        audio = self.setAudioParameters(audio)
         chunkedAudioSegments = self.chunkAudioIntoIntervals(audio, intervalLength)
         
         # Create a temporary container with a uuid name and upload all the chunks there for the batch transcription task
         tempContainerName = str(uuid4())
         tempContainerClient = self.blobClient.create_container(tempContainerName)
-        
         # Upload the chunks one by one with proper naming
         for index, audioChunk in enumerate(chunkedAudioSegments):
             blobName = f"Minute{index}_to_Minute{index+1}.wav"
             blobClient = tempContainerClient.get_blob_client(blobName)
             with tempfile.NamedTemporaryFile(delete=True) as tempFile:
                 audioChunk.export(tempFile, format = 'wav')
-                # Get the full path of the temporary file
-                tempFilePath = tempFile.name
-                with open(tempFilePath, "rb") as data:
-                    blobClient.upload_blob(data)
+                blobClient.upload_blob(tempFile)
         
-        tempContainerUri = tempContainerClient.url
+        recordingsBlobUriList = self.generateSasUrlForAllBlobs(containerClient = tempContainerClient)
         # Perform Speech to text Batch transcription
-        transcriptionJson = self.transcribe(recordingsBlobContainerUri = tempContainerUri, name = f"{audioFile.name}_Transcription", description = f"Transcription of {audioFile.name} chunked into lengths of duartion {intervalLength} seconds.")
-        transcriptionOfChunks = self.postProcessTranscriptionResults(originalAudioFileName = os.path.basename(audioFile.name), transcriptions = transcriptionJson)
+        fileName = fileName if fileName is not None else os.path.basename(mediaFile.name)
+        transcriptionList = self.transcribe(recordingsBlobUriList = recordingsBlobUriList, name = f"{fileName}_Transcription", description = f"Transcription of {fileName} chunked into lengths of duartion {intervalLength} seconds.")
+        transcriptionOfChunks = self.postProcessTranscriptionResults(originalAudioFileName = fileName, transcriptions = transcriptionList)
         # Delete the temporary client
         tempContainerClient.delete_container()
         return transcriptionOfChunks
         
-    def postProcessTranscriptionResults(self, originalAudioFileName: str, transcriptions: List[Dict[str, dict]]) -> List[str]:
+    def postProcessTranscriptionResults(self, originalAudioFileName: str, transcriptions: List[Dict]) -> List[str]:
         textOfAudioChunks = []
-        for transcription in transcriptions:
-            chunkName = transcription["AudioFileName"]
-            header = f"This is the transcription of {originalAudioFileName} for its duration of {chunkName}"
-            transcriptionText = transcription["Transcription"]["combinedRecognizedPhrases"][0]["display"]
+        for i, transcription in enumerate(transcriptions):
+            header = f"This is the transcription of {originalAudioFileName} for its segment from minute {i} to minute {i+1}."
+            transcriptionText = transcription["combinedRecognizedPhrases"][0]["display"]
             chunkText = f"{header}\n\n{transcriptionText}"
             textOfAudioChunks.append(chunkText)
         return textOfAudioChunks            
             
-    def transcribe(self, recordingsBlobContainerUri, name, description):
+    def transcribe(self, recordingsBlobUriList, name, description):
         # configure API key authorization: subscription_key
         configuration = swagger_client.Configuration()
         configuration.api_key["Ocp-Apim-Subscription-Key"] = self.speechServiceKey
@@ -107,7 +128,7 @@ class MediaHandler:
         properties.diarization = swagger_client.DiarizationProperties(
             swagger_client.DiarizationSpeakersProperties(min_count=1, max_count=5))
         
-        transcriptionDefinition = self.transcribeFromContainer(recordingsBlobContainerUri, properties, name, description)        
+        transcriptionDefinition = self.transcribeFromSingleBlob(recordingsBlobUriList, properties, name, description)        
         createdTranscription, status, headers = api.transcriptions_create_with_http_info(transcription=transcriptionDefinition)
 
         # get the transcription Id from the location URI
@@ -129,25 +150,26 @@ class MediaHandler:
 
                     audioFileName = os.path.basename(fileData.name).strip(".json").strip(".wav")
                     resultsUrl = fileData.links.content_url
-                    results = requests.get(resultsUrl)
+                    results = requests.get(resultsUrl).content.decode('utf-8')
                     #print(f"Results for {audioFileName}:\n{results.content.decode('utf-8')}")
-                    TranscriptionResults.append({"AudioFileName": audioFileName, "Transcription": results})
+                    TranscriptionResults.append(json.loads(results))
             elif transcription.status == "Failed":
                 print(f"Transcription failed: {transcription.properties.error.message}")
 
         return TranscriptionResults
         
         
-    def transcribeFromContainer(self, uri, properties, name, description):
+    def transcribeFromSingleBlob(self, uri, properties, name, description):
         """
-        Transcribe all files in the container located at `uri` using the settings specified in `properties`
+        Transcribe a single audio file located at `uri` using the settings specified in `properties`
         using the base model for the specified locale.
         """
+        uriList = [uri] if type(uri) != list else uri
         transcription_definition = swagger_client.Transcription(
             display_name=name,
             description=description,
             locale="en-US",
-            content_container_url=uri,
+            content_urls=uriList,
             properties=properties
         )
         return transcription_definition
@@ -169,3 +191,10 @@ class MediaHandler:
                 yield from paginatedObject.values
             else:
                 raise Exception(f"could not receive paginated data: status {status}")
+
+if __name__ == '__main__':
+    path = "sampleDocuments/Meliora — Supercharged by ChatGPT.mp4"
+    mediaHandler = MediaHandler()
+    with open(path, mode = 'rb') as f:
+        transcriptions = mediaHandler.mediaToTranscript(f, src = 'video')
+    print("\n\n".join(transcriptions))
