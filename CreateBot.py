@@ -8,6 +8,7 @@ from joblib import Parallel, delayed
 from pdfminer.high_level import extract_text
 import cleantext
 from time import sleep
+from MediaHandler import MediaHandler
 
 load_dotenv()
 
@@ -18,6 +19,7 @@ class CreateBot:
     def __init__(self):
 
         self.blobClient = BlobServiceClient.from_connection_string(os.environ['BLOB_STORAGE_CONNECTION_STRING'])
+        self.mediaHandler = MediaHandler(blobClient=self.blobClient)
 
     def display(self):
 
@@ -28,7 +30,7 @@ class CreateBot:
             with st.form("Bot Creation Form"):
                 
                 botName = st.text_input('Bot Name', key='bot_name', placeholder='Give your bot a name')
-                files = st.file_uploader('Upload the documents making up your knowledge base', accept_multiple_files=True, type=['pdf', 'docx', 'doc', 'mp4', 'txt', 'mp3'], key='upload_kb')
+                files = st.file_uploader('Upload the documents making up your knowledge base', accept_multiple_files=True, type=['pdf', 'docx', 'doc', 'mp4', 'txt', 'mp3', 'wav'], key='upload_kb')
                 
                 if st.form_submit_button("Create Bot"):
                     # self.initBot(botName, files)
@@ -72,11 +74,11 @@ class CreateBot:
         # Process file to get text
         if file.type == 'application/pdf':
             textContent = self._processPDF(file)
-        elif file.type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        elif file.type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
             textContent = self._processWord(file)
         elif file.type == 'video/mp4':
             textContent = self._processVideo(file)
-        elif file.type == 'audio/mpeg':
+        elif file.type in ['audio/mpeg', 'audio/wav']:
             textContent = self._processAudio(file)
         elif file.type == 'text/plain':
             textContent = self._processText(file)
@@ -99,10 +101,10 @@ class CreateBot:
         return 'Yet to implement word file'
     
     def _processVideo(self, videoFile):
-        return 'Yet to implement video file'
+        return self.mediaHandler.videoToTranscript(videoFile)
 
     def _processAudio(self, audioFile):
-        return 'Yet to implement audio file'
+        return self.mediaHandler.audioToTranscript(audioFile)
 
     def _processText(self, textFile):
         return '\n'.join(textFile.readlines())

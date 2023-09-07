@@ -1,0 +1,74 @@
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>ebf4ec96-58c1-4bbd-ad79-6c0ed7774969</ProjectGuid>
+    <ProjectHome>.</ProjectHome>
+    <StartupFile>
+    </StartupFile>
+    <SearchPath>
+    </SearchPath>
+    <WorkingDirectory>.</WorkingDirectory>
+    <OutputPath>.</OutputPath>
+    <Name>Hackathon2023</Name>
+    <RootNamespace>Hackathon2023</RootNamespace>
+    <InterpreterId>Global|VisualStudio|BotCraftEnv (Python 3.9)</InterpreterId>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugSymbols>true</DebugSymbols>
+    <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugSymbols>true</DebugSymbols>
+    <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
+  </PropertyGroup>
+  <ItemGroup>
+    <InterpreterReference Include="Global|VisualStudio|BotCraftEnv (Python 3.9)" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="CreateBot.py" />
+    <Compile Include="MediaHandler.py" />
+    <Compile Include="uiMockup\components\BotCard.py" />
+    <Compile Include="uiMockup\components\BotSidebar.py" />
+    <Compile Include="uiMockup\components\ChatBox.py" />
+    <Compile Include="uiMockup\interfaces\Bot.py" />
+    <Compile Include="uiMockup\layouts\Chat.py" />
+    <Compile Include="uiMockup\layouts\CreateBot.py" />
+    <Compile Include="uiMockup\layouts\Dashboard.py" />
+    <Compile Include="uiMockup\main.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include=".gitignore" />
+    <Content Include="requirements.txt" />
+    <Content Include="uiMockup\.streamlit\config.toml" />
+    <Content Include="uiMockup\components\__pycache__\BotCard.cpython-310.pyc" />
+    <Content Include="uiMockup\components\__pycache__\BotCard.cpython-39.pyc" />
+    <Content Include="uiMockup\components\__pycache__\BotSidebar.cpython-39.pyc" />
+    <Content Include="uiMockup\components\__pycache__\ChatBox.cpython-39.pyc" />
+    <Content Include="uiMockup\interfaces\__pycache__\Bot.cpython-310.pyc" />
+    <Content Include="uiMockup\interfaces\__pycache__\Bot.cpython-39.pyc" />
+    <Content Include="uiMockup\layouts\__pycache__\Chat.cpython-39.pyc" />
+    <Content Include="uiMockup\layouts\__pycache__\CreateBot.cpython-39.pyc" />
+    <Content Include="uiMockup\layouts\__pycache__\Dashboard.cpython-310.pyc" />
+    <Content Include="uiMockup\layouts\__pycache__\Dashboard.cpython-39.pyc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="uiMockup\" />
+    <Folder Include="uiMockup\.streamlit\" />
+    <Folder Include="uiMockup\components\" />
+    <Folder Include="uiMockup\components\__pycache__\" />
+    <Folder Include="uiMockup\interfaces\" />
+    <Folder Include="uiMockup\interfaces\__pycache__\" />
+    <Folder Include="uiMockup\layouts\" />
+    <Folder Include="uiMockup\layouts\__pycache__\" />
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
+  <!-- Uncomment the CoreCompile target to enable the Build command in
+       Visual Studio and specify your pre- and post-build commands in
+       the BeforeBuild and AfterBuild targets below. -->
+  <!--<Target Name="CoreCompile" />-->
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+</Project>
