@@ -1,1 +1,13 @@
 .env
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*venv
+*.DS_Store
+*.vs
+.vscode/
+
+/LocalTest/
+/Scratch.ipynb
