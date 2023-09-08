@@ -19,8 +19,7 @@ class MediaHandler:
     def generateSasUrlForContainer(self, containerClient):
         sasDuration = timedelta(hours = 1)
         sasPermissions = BlobSasPermissions(read = True, list = True)
-        sasStartTime = datetime.utcnow()
-        
+        sasStartTime = datetime.utcnow()        
 
         sasToken = generate_container_sas(
             account_name = self.blobClient.account_name,
@@ -63,8 +62,7 @@ class MediaHandler:
             audio = AudioSegment.from_file(mediaFile, format = 'mp4')
         else:
             audio = AudioSegment.from_file(mediaFile, format = 'wav')
-        return audio
-    
+        return audio    
     
     def mediaToTranscript(self, mediaFile: object, intervalLength = 60, fileName = None, src = 'video'):
         audio = self.extractAudioFromMedia(mediaFile, src)
@@ -94,11 +92,14 @@ class MediaHandler:
     def postProcessTranscriptionResults(self, originalAudioFileName: str, transcriptions: List[Dict[str, dict]]) -> List[str]:
         textOfAudioChunks = []
         for transcription in transcriptions:
-            chunkName = transcription["AudioFileName"].replace("_", " ").lower()
-            header = f"This is the transcription of {originalAudioFileName} for its segment from {chunkName}."
-            transcriptionText = transcription["Transcription"]["combinedRecognizedPhrases"][0]["display"]
-            chunkText = f"{header}\n\n{transcriptionText}"
-            textOfAudioChunks.append(chunkText)
+            try:
+                chunkName = transcription["AudioFileName"].replace("_", " ").lower()
+                header = f"This is the transcription of {originalAudioFileName} for its segment from {chunkName}."
+                transcriptionText = transcription["Transcription"]["combinedRecognizedPhrases"][0]["display"]
+                chunkText = f"{header}\n\n{transcriptionText}"
+                textOfAudioChunks.append(chunkText)
+            except:
+                pass
         return textOfAudioChunks            
             
     def transcribe(self, recordingsBlobContainerUri, name, description):
@@ -203,7 +204,7 @@ class MediaHandler:
                 raise Exception(f"could not receive paginated data: status {status}")
 
 if __name__ == '__main__':
-    path = "sampleDocuments/Meliora — Supercharged by ChatGPT.mp4"
+    path = "sampleDocuments/Docker in 100 Seconds.mp4"
     mediaHandler = MediaHandler()
     with open(path, mode = 'rb') as f:
         transcriptions = mediaHandler.mediaToTranscript(f, src = 'video')
