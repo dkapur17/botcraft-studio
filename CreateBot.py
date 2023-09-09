@@ -3,7 +3,7 @@ import io
 import streamlit as st
 import cleantext
 import openai
-import tempfile
+import textract
 
 from azure.core.credentials import AzureKeyCredential
 from azure.storage.blob import BlobServiceClient
@@ -12,14 +12,14 @@ from azure.search.documents.indexes.models import SimpleField, SearchableField, 
 from dotenv import load_dotenv
 from uuid import uuid4
 from joblib import Parallel, delayed
-from pdfminer.high_level import extract_text
 from time import sleep
 from MediaHandler import MediaHandler
+
 
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import AzureSearch
 from langchain.text_splitter import TokenTextSplitter
-from langchain.document_loaders import TextLoader
+from langchain.docstore.document import Document
 
 from utils import TempFilePath
 
@@ -94,7 +94,7 @@ class CreateBot:
         statusText.empty()
 
         statusText.info("Vectorizing and Pushing to Database...")
-        Parallel(n_jobs=-1)(delayed(self.vectorizeAndPush)(text) for text in texts)
+        Parallel(n_jobs=-1)(delayed(self.vectorizeAndPush)(text['src'], text['content']) for text in texts)
         statusText.empty()
 
         statusText.success("Bot Created!")
@@ -132,10 +132,11 @@ class CreateBot:
     
     def extractTextFromFiles(self, file):
         # Process file to get text
-        if file.type == 'application/pdf':
-            textContent = self._processPDF(file)
-        elif file.type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
-            textContent = self._processWord(file)
+        if file.type in ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
+            extension = {'application/pdf': 'pdf', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx'}[file.type]
+            textContent = self._processDocument(file, extension)
+        elif file.type == 'text/plain':
+            textContent = self._processPlaintext(file)
         elif file.type == 'video/mp4':
             textContent = self._processVideo(file)
         elif file.type in ['audio/mpeg', 'audio/wav']:
@@ -146,47 +147,44 @@ class CreateBot:
         return textContent
     
     def uploadText(self, botName, botId, src, content, containerClient):
-        if type(content) == list:
-            for i, document in enumerate(content):
-                containerClient.upload_blob(name=f'{botName}-{botId}/{src.name}_{i}.txt', data=document, overwrite=True)
-        else:
-            containerClient.upload_blob(name=f'{botName}-{botId}/{src.name}.txt', data=content, overwrite=True)
+        for i, document in enumerate(content):
+            textFileName = f"{botName}-{botId}/{src.name}_{i}.txt"
+            containerClient.upload_blob(name=textFileName, data=document, overwrite=True)
 
+    def vectorizeAndPush(self, src, content):
 
-    def vectorizeAndPush(self, text):
-        with tempfile.NamedTemporaryFile(delete=True) as tempFile:
-            tempFile.write(text['content'].encode('utf-8'))
-            loader = TextLoader(tempFile.name)
-            textSplitter = TokenTextSplitter(chunk_size=100, chunk_overlap=5)
-            docs = textSplitter.split_documents(loader.load())
-            for doc in docs:
-                doc.metadata['source'] = text['src'].name
-            self.vectorStore.add_documents(docs)
+        for i, docStr in enumerate(content):
+            print("="*30)
+            print("***Doc String***")
+            print(docStr)
+            doc = [Document(page_content=docStr, metadata={'source': f"{src.name}_{i}"})]
+            print("="*30)
+            print("***Langchain doc object***")
+            print(doc)
+            print("="*30)
+            textSplitter = TokenTextSplitter(chunk_size=500, chunk_overlap=50)
+            subDocs = textSplitter.split_documents(doc)
+            print(subDocs)
+            self.vectorStore.add_documents(subDocs)
 
-    def _processPDF(self, pdfFile):
+    def _processPlaintext(self, file):
+        extractedText = file.read().decode()
+        cleanedText = cleantext.clean(extractedText, clean_all=False, extra_spaces=True, stemming=False, stopwords=False, lowercase=False, numbers=False, punct=False, reg='\n', reg_replace=' ')
+        return [cleanedText]
 
-        with TempFilePath(pdfFile) as tempFilePath:       
-            extractedText = extract_text(tempFilePath)
+    def _processDocument(self, file, extension):
+
+        with TempFilePath(file) as tempFilePath:       
+            extractedText = textract.process(tempFilePath, extension=extension, encoding='ascii').decode()
 
         cleanedText = cleantext.clean(extractedText, clean_all=False, extra_spaces=True, stemming=False, stopwords=False, lowercase=False, numbers=False, punct=False, reg='\n', reg_replace=' ')
-        return cleanedText
-
-    def _processWord(self, wordFile):
-        return 'Yet to implement word file'
+        return [cleanedText]
     
     def _processVideo(self, videoFile):
         return self.mediaHandler.mediaToTranscript(videoFile, src = 'video')
 
     def _processAudio(self, audioFile):
         return self.mediaHandler.mediaToTranscript(audioFile, src = 'audio')
-
-    def _processText(self, textFile):
-        with TempFilePath(textFile) as tempFilePath:
-            with open(tempFilePath, 'r') as f:
-                return '\n'.join(f.readlines())
-
-    def _getTempPath(self, file):
-        return f'temp/{file.name}'
 
 
 st.set_page_config(
