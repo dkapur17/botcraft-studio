@@ -26,10 +26,12 @@ from utils import TempFilePath
 load_dotenv()
 
 
-st.session_state['active_user'] = 'testuser1'
-
 class CreateBot:
     def __init__(self):
+        st.set_page_config(
+        page_title="Create a new Bot",
+        page_icon=":robot_face:",
+        layout="centered")
 
         self.blobClient = BlobServiceClient.from_connection_string(os.environ['BLOB_STORAGE_CONNECTION_STRING'])
         self.mediaHandler = MediaHandler(blobClient=self.blobClient)
@@ -48,9 +50,11 @@ class CreateBot:
         
         self.vectorDBClient = SearchIndexClient(os.environ['AZURE_COGNITIVE_SEARCH_ENDPOINT'], AzureKeyCredential(os.environ['AZURE_COGNITIVE_SEARCH_KEY']))
 
-    def display(self):
+    def display(self, router):
 
         st.title("BotCraft Studio") 
+        if st.button('Back to Dashboard'):
+            router.redirect('/')
         st.header('Create a new Bot')
 
         if 'waitingOnBotCreation' not in st.session_state:
@@ -60,15 +64,15 @@ class CreateBot:
                 files = st.file_uploader('Upload the documents making up your knowledge base', accept_multiple_files=True, type=['pdf', 'docx', 'doc', 'mp4', 'txt', 'mp3', 'wav'], key='upload_kb')
                 
                 if st.form_submit_button("Create Bot"):
-                    # self.initBot(botName, files)
                     st.session_state['createBotInfo'] = {'botName': botName, 'files': files}
                     st.session_state['waitingOnBotCreation'] = True
                     st.experimental_rerun()
         else:
             with st.spinner("Creating Bot..."):
                 statusText = st.empty()
-                self.initBot(st.session_state['createBotInfo']['botName'], st.session_state['createBotInfo']['files'], statusText)
+                botId = self.initBot(st.session_state['createBotInfo']['botName'], st.session_state['createBotInfo']['files'], statusText)
             statusText.success("Bot Created!")
+            router.redirect(f'/chat/{botId}')
 
     def initBot(self, botName, files, statusText):
         
@@ -97,7 +101,8 @@ class CreateBot:
         Parallel(n_jobs=-1)(delayed(self.vectorizeAndPush)(text['src'], text['content']) for text in texts)
         statusText.empty()
 
-        statusText.success("Bot Created!")
+        return f'{botName}-{botId}'
+
 
     def createIndex(self, botName, botId):
         fields = [
@@ -185,11 +190,3 @@ class CreateBot:
 
     def _processAudio(self, audioFile):
         return self.mediaHandler.mediaToTranscript(audioFile, src = 'audio')
-
-
-st.set_page_config(
-    page_title="Create a new Bot",
-    page_icon=":robot_face:",
-    layout="centered")
-
-CreateBot().display()
