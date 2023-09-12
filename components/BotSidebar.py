@@ -6,6 +6,7 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import AzureSearch
 from langchain.text_splitter import TokenTextSplitter
 from langchain.docstore.document import Document
+from azure.search.documents.indexes.models import SimpleField, SearchableField, SearchField, SearchFieldDataType
 
 from TextProcessor import TextProcessor
 
@@ -81,7 +82,7 @@ class BotSidebar:
             doc = [Document(page_content=docStr, metadata={'source': src.name, 'file-type': fileType, 'description': description})]
             textSplitter = TokenTextSplitter(chunk_size=500, chunk_overlap=50)
             subDocs = textSplitter.split_documents(doc)
-            vectorStore.add_documents(subDocs)
+            vectorStore.add_texts(texts = [document.page_content for document in subDocs], metadatas=[document.metadata for document in subDocs])
             
     def uploadFiles(self, files):
         print(files)
@@ -96,9 +97,17 @@ class BotSidebar:
         
         Parallel(n_jobs=-1)(delayed(self.uploadText)(self.botId, text['src'], text['content'], userContainerClient) for text in texts)
         
+        fields = [
+            SimpleField(name="id", type=SearchFieldDataType.String, key=True, sortable=True, filterable=True, facetable=True),
+            SearchableField(name="content", type=SearchFieldDataType.String, searchable = True),
+            SearchField(name="content_vector", type=SearchFieldDataType.Collection(SearchFieldDataType.Single), searchable=True, vector_search_dimensions=1536, vector_search_configuration='my-vector-config'),
+            SearchableField(name="metadata", type=SearchFieldDataType.String, searchable = True),
+            SearchableField(name="description", type=SearchFieldDataType.String, searchable = True)
+        ]
         vectorStore = AzureSearch(azure_search_endpoint=os.environ['AZURE_COGNITIVE_SEARCH_ENDPOINT'],
                                        azure_search_key=os.environ['AZURE_COGNITIVE_SEARCH_KEY'],
                                        index_name=self.botId.lower(),
-                                       embedding_function=self.embeddingEngine.embed_query)
+                                       embedding_function=self.embeddingEngine.embed_query,
+                                       fields = fields)
         Parallel(n_jobs=-1)(delayed(self.vectorizeAndPush)(text['src'], text['content'], text['file-type'], vectorStore) for text in texts)
         

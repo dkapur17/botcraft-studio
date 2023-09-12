@@ -47,8 +47,6 @@ class CreateBot:
                                                 openai_api_base=os.environ['AZURE_OPENAI_ENDPOINT'], 
                                                 openai_api_version='2023-05-15',
                                                 openai_api_type='azure')
-        
-        self.vectorDBClient = SearchIndexClient(os.environ['AZURE_COGNITIVE_SEARCH_ENDPOINT'], AzureKeyCredential(os.environ['AZURE_COGNITIVE_SEARCH_KEY']))
 
     def display(self, router):
 
@@ -109,7 +107,7 @@ class CreateBot:
             SimpleField(name="id", type=SearchFieldDataType.String, key=True, sortable=True, filterable=True, facetable=True),
             SearchableField(name="content", type=SearchFieldDataType.String, searchable = True),
             SearchField(name="content_vector", type=SearchFieldDataType.Collection(SearchFieldDataType.Single), searchable=True, vector_search_dimensions=1536, vector_search_configuration='my-vector-config'),
-            SearchableField(name="metadata", type=SearchFieldDataType.String),
+            SearchableField(name="metadata", type=SearchFieldDataType.String, searchable = True),
             SearchableField(name="description", type=SearchFieldDataType.String, searchable = True)
         ]
         vectorSearch = VectorSearch(
@@ -126,12 +124,13 @@ class CreateBot:
             ]
         )
         indexName = f'{botName}-{botId}'.lower()
-        index = SearchIndex(name=indexName, fields=fields, vector_search=vectorSearch)
-        self.vectorDBClient.create_index(index)
         self.vectorStore = AzureSearch(azure_search_endpoint=os.environ['AZURE_COGNITIVE_SEARCH_ENDPOINT'],
                                        azure_search_key=os.environ['AZURE_COGNITIVE_SEARCH_KEY'],
                                        index_name=indexName,
-                                       embedding_function=self.embeddingEngine.embed_query)
+                                       embedding_function=self.embeddingEngine.embed_query,
+                                       fields = fields,
+                                       vector_search=vectorSearch
+                                       )
 
     def uploadFile(self, botName, botId, file, containerClient):
         containerClient.upload_blob(name=f'{botName}-{botId}/{file.name}', data=file, overwrite=True)
@@ -160,4 +159,4 @@ class CreateBot:
             textSplitter = TokenTextSplitter(chunk_size=1500, chunk_overlap=200)
             subDocs = textSplitter.split_documents(doc)
             print(subDocs)
-            self.vectorStore.add_documents(subDocs)
+            self.vectorStore.add_texts(texts = [document.page_content for document in subDocs], metadatas=[document.metadata for document in subDocs])
