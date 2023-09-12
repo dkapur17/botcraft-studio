@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from uuid import uuid4
 from joblib import Parallel, delayed
 from time import sleep
-from MediaHandler import MediaHandler
+from TextProcessor import TextProcessor
 
 
 from langchain.embeddings import OpenAIEmbeddings
@@ -34,7 +34,7 @@ class CreateBot:
         layout="centered")
 
         self.blobClient = BlobServiceClient.from_connection_string(os.environ['BLOB_STORAGE_CONNECTION_STRING'])
-        self.mediaHandler = MediaHandler(blobClient=self.blobClient)
+        self.textProcessor = TextProcessor()
         
         openai.api_base = os.environ['AZURE_OPENAI_ENDPOINT']
         openai.api_key = os.environ['AZURE_OPENAI_API_KEY']
@@ -89,8 +89,8 @@ class CreateBot:
         statusText.empty()
 
         statusText.info("Extracting Content from Files...")
-        texts = Parallel(n_jobs=-1)(delayed(self.extractTextFromFiles)(file) for file in files)
-        texts = [{'src': file, 'content': text} for file, text in zip(files, texts)]
+        texts = Parallel(n_jobs=-1)(delayed(self.textProcessor.extractTextFromFiles)(file) for file in files)
+        texts = [{'src': file, 'content': text['content'], 'file-type': text['file-type']} for file, text in zip(files, texts)]
         statusText.empty()
 
         statusText.info("Uploading Text Content...")
@@ -98,7 +98,7 @@ class CreateBot:
         statusText.empty()
 
         statusText.info("Vectorizing and Pushing to Database...")
-        Parallel(n_jobs=-1)(delayed(self.vectorizeAndPush)(text['src'], text['content']) for text in texts)
+        Parallel(n_jobs=-1)(delayed(self.vectorizeAndPush)(text['src'], text['content'], text['file-type']) for text in texts)
         statusText.empty()
 
         return f'{botName}-{botId}'
@@ -107,9 +107,10 @@ class CreateBot:
     def createIndex(self, botName, botId):
         fields = [
             SimpleField(name="id", type=SearchFieldDataType.String, key=True, sortable=True, filterable=True, facetable=True),
-            SearchableField(name="content", type=SearchFieldDataType.String),
+            SearchableField(name="content", type=SearchFieldDataType.String, searchable = True),
             SearchField(name="content_vector", type=SearchFieldDataType.Collection(SearchFieldDataType.Single), searchable=True, vector_search_dimensions=1536, vector_search_configuration='my-vector-config'),
-            SearchableField(name="metadata", type=SearchFieldDataType.String)
+            SearchableField(name="metadata", type=SearchFieldDataType.String),
+            SearchableField(name="description", type=SearchFieldDataType.String, searchable = True)
         ]
         vectorSearch = VectorSearch(
             algorithm_configurations=[
@@ -135,58 +136,28 @@ class CreateBot:
     def uploadFile(self, botName, botId, file, containerClient):
         containerClient.upload_blob(name=f'{botName}-{botId}/{file.name}', data=file, overwrite=True)
     
-    def extractTextFromFiles(self, file):
-        # Process file to get text
-        if file.type in ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
-            extension = {'application/pdf': 'pdf', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx'}[file.type]
-            textContent = self._processDocument(file, extension)
-        elif file.type == 'text/plain':
-            textContent = self._processPlaintext(file)
-        elif file.type == 'video/mp4':
-            textContent = self._processVideo(file)
-        elif file.type in ['audio/mpeg', 'audio/wav']:
-            textContent = self._processAudio(file)
-        elif file.type == 'text/plain':
-            textContent = self._processText(file)
-
-        return textContent
     
     def uploadText(self, botName, botId, src, content, containerClient):
         for i, document in enumerate(content):
             textFileName = f"{botName}-{botId}/{src.name}_{i}.txt"
             containerClient.upload_blob(name=textFileName, data=document, overwrite=True)
 
-    def vectorizeAndPush(self, src, content):
+    def vectorizeAndPush(self, src, content, fileType):
 
         for i, docStr in enumerate(content):
             print("="*30)
             print("***Doc String***")
             print(docStr)
-            doc = [Document(page_content=docStr, metadata={'source': f"{src.name}_{i}"})]
+            if src.name.__contains__(".mp4") or src.name.__contains__(".mp3") or src.name.__contains__(".wav"):
+                description = f"Transcription of {src.name} from minute {i} to minute {i+1}."
+            else:
+                description = f"Text content of {src.name}"
+            doc = [Document(page_content=docStr, metadata={'source': src.name, 'file-type': fileType, 'description': description})]
             print("="*30)
             print("***Langchain doc object***")
             print(doc)
             print("="*30)
-            textSplitter = TokenTextSplitter(chunk_size=500, chunk_overlap=50)
+            textSplitter = TokenTextSplitter(chunk_size=1500, chunk_overlap=200)
             subDocs = textSplitter.split_documents(doc)
             print(subDocs)
             self.vectorStore.add_documents(subDocs)
-
-    def _processPlaintext(self, file):
-        extractedText = file.read().decode()
-        cleanedText = cleantext.clean(extractedText, clean_all=False, extra_spaces=True, stemming=False, stopwords=False, lowercase=False, numbers=False, punct=False, reg='\n', reg_replace=' ')
-        return [cleanedText]
-
-    def _processDocument(self, file, extension):
-
-        with TempFilePath(file) as tempFilePath:       
-            extractedText = textract.process(tempFilePath, extension=extension, encoding='ascii').decode()
-
-        cleanedText = cleantext.clean(extractedText, clean_all=False, extra_spaces=True, stemming=False, stopwords=False, lowercase=False, numbers=False, punct=False, reg='\n', reg_replace=' ')
-        return [cleanedText]
-    
-    def _processVideo(self, videoFile):
-        return self.mediaHandler.mediaToTranscript(videoFile, src = 'video')
-
-    def _processAudio(self, audioFile):
-        return self.mediaHandler.mediaToTranscript(audioFile, src = 'audio')

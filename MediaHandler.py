@@ -94,9 +94,8 @@ class MediaHandler:
         for transcription in transcriptions:
             try:
                 chunkName = transcription["AudioFileName"].replace("_", " ").lower()
-                header = f"This is the transcription of {originalAudioFileName} for its segment from {chunkName}."
                 transcriptionText = transcription["Transcription"]["combinedRecognizedPhrases"][0]["display"]
-                chunkText = f"{header}\n\n{transcriptionText}"
+                chunkText = f"{transcriptionText}"
                 textOfAudioChunks.append(chunkText)
             except:
                 pass

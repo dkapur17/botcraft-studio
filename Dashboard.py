@@ -1,14 +1,16 @@
 import streamlit as st
+import os
 from uuid import uuid1
 from typing import List
+from azure.storage.blob import BlobServiceClient
 
 class Dashboard:
-
-    def init(self) -> None:
+    def __init__(self) -> None:
         st.set_page_config(
         page_title="Dashboard",
         page_icon=":robot_face",
         layout="centered")
+        self.blobClient = BlobServiceClient.from_connection_string(os.environ['BLOB_STORAGE_CONNECTION_STRING'])
 
     def display(self, router) -> None:
         st.title("GoBot")
@@ -29,5 +31,8 @@ class Dashboard:
                         router.redirect(f'/chat/{botId}')
 
     def _getBots(self) -> List[str]:
-        # TODO: Get list of bots for the current user from blob storage
-        return ['AlphaZero-e3a59a6f-2163-41b0-bf24-60de569001a0']
+        currentUser = st.session_state['active_user']
+        userContainerClient = self.blobClient.get_container_client(currentUser)
+        allBlobs = userContainerClient.list_blob_names()
+        userBots = list(set([blob.split("/")[0] for blob in allBlobs]))
+        return userBots
