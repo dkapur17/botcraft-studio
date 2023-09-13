@@ -29,6 +29,7 @@ class BotSidebar:
     def display(self, router) -> None:
         with st.sidebar:
             if st.button("Back to Dashboard"):
+                del st.session_state[f'{self.botId}_files']
                 router.redirect('/')
             st.title(self.botName)
             if st.button('Clear Chat'):
@@ -55,6 +56,10 @@ class BotSidebar:
     
     def getFiles(self):
         # TODO: Fetch file list from blob storage
+
+        if f'{self.botId}_files' in st.session_state:
+            return st.session_state[f'{self.botId}_files']
+
         currentUser = st.session_state['active_user']
         userContainerClient = self.blobClient.get_container_client(currentUser)
         allBlobs = userContainerClient.list_blob_names()
@@ -62,6 +67,7 @@ class BotSidebar:
         relevantBlobs = [blob for blob in allBlobs if blob.startswith(f"{self.botId}/")]
         relevantBlobs = list(set([blob for blob in relevantBlobs if self.isOriginalUpload(blob)]))
         userFiles = [blob.split("/")[-1] for blob in relevantBlobs]
+        st.session_state[f'{self.botId}_files'] = userFiles
         return userFiles
     
     def uploadFile(self, botId, file, containerClient):
@@ -110,4 +116,7 @@ class BotSidebar:
                                        embedding_function=self.embeddingEngine.embed_query,
                                        fields = fields)
         Parallel(n_jobs=-1)(delayed(self.vectorizeAndPush)(text['src'], text['content'], text['file-type'], vectorStore) for text in texts)
+
+        # New files were uploaded, so we need to remove the cached file list
+        del st.session_state[f'{self.botId}_files']
         

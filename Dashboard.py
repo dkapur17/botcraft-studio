@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-from uuid import uuid1
 from typing import List
 from azure.storage.blob import BlobServiceClient
 
@@ -13,7 +12,7 @@ class Dashboard:
         self.blobClient = BlobServiceClient.from_connection_string(os.environ['BLOB_STORAGE_CONNECTION_STRING'])
 
     def display(self, router) -> None:
-        st.title("GoBot")
+        st.title("BotCraft Studio")
         st.caption("Chat with an existing bot, or create a new bot")
 
         st.header("Your bots")

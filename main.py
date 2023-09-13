@@ -14,7 +14,7 @@ router = StreamlitRouter()
 def _index():
     Dashboard().display(router)
 
-@router.map('/createBot')
+@router.map('/createBot', ['GET'])
 def _createBot():
     CreateBot().display(router)
 

@@ -6,35 +6,36 @@ from langchain.embeddings import OpenAIEmbeddings
 from transformers import GPT2TokenizerFast
 from langchain.vectorstores import AzureSearch
 
+
+@st.cache_resource(show_spinner=False)
+def getVectorStore(indexName):
+    embeddingEngine = OpenAIEmbeddings(deployment=os.environ['AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME'], 
+                            chunk_size=1, 
+                            openai_api_key=os.environ['AZURE_OPENAI_API_KEY'], 
+                            openai_api_base=os.environ['AZURE_OPENAI_ENDPOINT'], 
+                            openai_api_version='2023-05-15',
+                            openai_api_type='azure')
+    
+    return AzureSearch(azure_search_endpoint=os.environ['AZURE_COGNITIVE_SEARCH_ENDPOINT'],
+                                       azure_search_key=os.environ['AZURE_COGNITIVE_SEARCH_KEY'],
+                                       index_name=indexName,
+                                       embedding_function=embeddingEngine.embed_query)
+@st.cache_resource(show_spinner=False)
+def getTokenizer():
+    return GPT2TokenizerFast.from_pretrained("gpt2")
+
 class ChatBox:
 
     def __init__(self, botId):
         self.botId = botId
         self.botName = botId.split("-")[0]
-        self.embeddingEngine = OpenAIEmbeddings(deployment=os.environ['AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME'], 
-                                                chunk_size=1, 
-                                                openai_api_key=os.environ['AZURE_OPENAI_API_KEY'], 
-                                                openai_api_base=os.environ['AZURE_OPENAI_ENDPOINT'], 
-                                                openai_api_version='2023-05-15',
-                                                openai_api_type='azure')
-        
-        # self.chatEngine = AzureChatOpenAI(deployment_name=os.environ["AZURE_OPENAI_CHAT_COMPLETION_DEPLOYMENT_NAME"],
-        #                                 temperature = 0.7,
-        #                                 openai_api_key=os.environ['AZURE_OPENAI_API_KEY'], 
-        #                                 openai_api_base=os.environ['AZURE_OPENAI_ENDPOINT'], 
-        #                                 openai_api_version='2023-05-15',
-        #                                 openai_api_type='azure',
-        #                                 max_tokens = 800)
         openai.api_key=os.environ['AZURE_OPENAI_API_KEY'] 
         openai.api_base=os.environ['AZURE_OPENAI_ENDPOINT'] 
         openai.api_version='2023-05-15'
         openai.api_type='azure'
-        
-        self.vectorStore = AzureSearch(azure_search_endpoint=os.environ['AZURE_COGNITIVE_SEARCH_ENDPOINT'],
-                                       azure_search_key=os.environ['AZURE_COGNITIVE_SEARCH_KEY'],
-                                       index_name=self.botId.lower(),
-                                       embedding_function=self.embeddingEngine.embed_query)
-        self.tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+
+        self.vectorStore = getVectorStore(self.botId.lower())
+        self.tokenizer = getTokenizer()
         # self.retriever = AzureSearchVectorStoreRetriever(vectorstore=self.vectorStore, search_type="hybrid", k = 5)
         
     def display(self):
@@ -46,12 +47,13 @@ class ChatBox:
         if query := st.chat_input("What would you like to know?"):
             with st.chat_message("user"):
                 st.markdown(query)
-            
-            chatHistory = st.session_state[f'{self.botId}_messages']
-            chatHistory.append({'role': 'user', 'content': query})
-            chatHistory.append(self.getAnswer(chatHistory))
-            st.session_state[f'{self.botId}_messages'] = chatHistory
-            st.experimental_rerun()
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    chatHistory = st.session_state[f'{self.botId}_messages']
+                    chatHistory.append({'role': 'user', 'content': query})
+                    chatHistory.append(self.getAnswer(chatHistory))
+                    st.session_state[f'{self.botId}_messages'] = chatHistory
+                    st.experimental_rerun()
 
     def getAnswer(self, chatHistory):
         # TODO: Write business logic for getting answer
@@ -141,7 +143,8 @@ class ChatBox:
             )
             
             return classifierResponse["choices"][0]["text"].strip().lower()
-        except:
+        except Exception as e:
+            print(e)
             return 'invalid'
         
     def getGreetingsResponse(self, reframedQuery):
