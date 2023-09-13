@@ -3,6 +3,8 @@ import os
 from typing import List
 from azure.storage.blob import BlobServiceClient
 
+from BotCard import BotCard
+
 class Dashboard:
     def __init__(self) -> None:
         st.set_page_config(
@@ -21,13 +23,9 @@ class Dashboard:
             router.redirect('/createBot')
 
         cols = st.columns(3)
-        for col, botId in zip(cols, bots):
-            with col:
-                with st.form(key=f'{botId}_card'):
-                    botName = botId.split('-')[0]
-                    st.subheader(botName)
-                    if st.form_submit_button('Chat'):
-                        router.redirect(f'/chat/{botId}')
+        for i, botId in enumerate(bots):
+            with cols[i%3]:
+                BotCard(botId).display(router)
 
     def _getBots(self) -> List[str]:
         currentUser = st.session_state['active_user']

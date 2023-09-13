@@ -70,6 +70,7 @@ class CreateBot:
                 statusText = st.empty()
                 botId = self.initBot(st.session_state['createBotInfo']['botName'], st.session_state['createBotInfo']['files'], statusText)
             statusText.success("Bot Created!")
+            del st.session_state['waitingOnBotCreation']
             router.redirect(f'/chat/{botId}')
 
     def initBot(self, botName, files, statusText):
