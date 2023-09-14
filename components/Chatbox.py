@@ -1,7 +1,7 @@
 import streamlit as st
-import hydralit_components as hc
 import os
 import openai
+import time
 
 from langchain.embeddings import OpenAIEmbeddings
 from transformers import GPT2TokenizerFast
@@ -75,8 +75,13 @@ class ChatBox:
                             max_tokens = 1500,
                             stream = True
                         ):
-                        fullResponse += response.choices[0].delta.get("content", "")
-                        messagePlaceholder.markdown(fullResponse + "▌")
+                        # fullResponse += response.choices[0].delta.get("content", "")
+                        # for token in response.choices[0].delta.get("content", ""):
+                        delta = response.choices[0].delta.get("content", "")
+                        for i in range(0,len(delta), 5):
+                            fullResponse += delta[i:i+5]
+                            messagePlaceholder.markdown(fullResponse + "▌")
+                            time.sleep(0.05)
                     messagePlaceholder.markdown(fullResponse)
                     chatHistory[-1]['category'] = assistantResponse['category']
                     chatHistory.append({'role': 'assistant', 'content': fullResponse, 'category': assistantResponse['category']})
