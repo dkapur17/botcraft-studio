@@ -15,22 +15,32 @@ class Dashboard:
 
     def display(self) -> None:
         st.title("BotCraft Studio")
+        st.subheader(f"Hey {st.session_state['active_user']}")
         st.caption("Chat with an existing bot, or create a new bot")
 
         st.header("Your bots")
-        bots = self._getBots()
+        
+        with st.spinner("Fetching your bots..."):
+            bots = self._getBots()
         if st.button("Create a New Bot"):
             st.session_state['activePage'] = 'createBot'
             st.experimental_rerun()
 
-        cols = st.columns(3)
-        for i, botId in enumerate(bots):
-            with cols[i%3]:
-                BotCard(botId).display()
+        if len(bots):
+            cols = st.columns(3)
+            for i, botId in enumerate(bots):
+                with cols[i%3]:
+                    BotCard(botId).display()
+        else:
+            st.caption("You have no bots yet. Create a new one to get started!")
 
     def _getBots(self) -> List[str]:
         currentUser = st.session_state['active_user']
-        userContainerClient = self.blobClient.get_container_client(currentUser)
+        try:
+            userContainerClient = self.blobClient.create_container(currentUser)
+        except:
+            userContainerClient = self.blobClient.get_container_client(currentUser)
+
         allBlobs = userContainerClient.list_blob_names()
         userBots = list(set([blob.split("/")[0] for blob in allBlobs]))
         return userBots

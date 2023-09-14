@@ -30,7 +30,7 @@ class CreateBot:
     def __init__(self):
         st.set_page_config(
         page_title="Create a new Bot",
-        page_icon=":robot_face:",
+        page_icon=":pencil:",
         layout="centered")
 
         self.blobClient = BlobServiceClient.from_connection_string(os.environ['BLOB_STORAGE_CONNECTION_STRING'])
