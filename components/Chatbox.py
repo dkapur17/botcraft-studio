@@ -1,4 +1,5 @@
 import streamlit as st
+import hydralit_components as hc
 import os
 import openai
 
@@ -48,12 +49,40 @@ class ChatBox:
             with st.chat_message("user"):
                 st.markdown(query)
             with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    chatHistory = st.session_state[f'{self.botId}_messages']
-                    chatHistory.append({'role': 'user', 'content': query})
-                    chatHistory.append(self.getAnswer(chatHistory))
-                    st.session_state[f'{self.botId}_messages'] = chatHistory
-                    st.experimental_rerun()
+                # with st.spinner("Fetching results..."):
+                #     chatHistory = st.session_state[f'{self.botId}_messages']
+                #     chatHistory.append({'role': 'user', 'content': query})
+                #     response = self.getAnswer(chatHistory)
+                #     chatHistory[-1]['category'] = response['category']
+                #     chatHistory.append(response)
+                #     st.session_state[f'{self.botId}_messages'] = chatHistory
+                chatHistory = st.session_state[f'{self.botId}_messages']
+                chatHistory.append({'role': 'user', 'content': query})
+                messagePlaceholder = st.empty()
+                fullResponse = ""
+                with st.spinner("Fetching results..."):
+                    assistantResponse = self.getAnswer(chatHistory)
+                if assistantResponse['category'] == 'invalid':
+                    messagePlaceholder.markdown(assistantResponse['content'])
+                    chatHistory[-1]['category'] = 'invalid'
+                    chatHistory.append(assistantResponse)
+                else:
+                    for response in openai.ChatCompletion.create(
+                            engine = os.environ["AZURE_OPENAI_CHAT_COMPLETION_DEPLOYMENT_NAME"],
+                            messages = assistantResponse['content'],
+                            temperature = 0,
+                            top_p = 0,
+                            max_tokens = 1500,
+                            stream = True
+                        ):
+                        fullResponse += response.choices[0].delta.get("content", "")
+                        messagePlaceholder.markdown(fullResponse + "▌")
+                    messagePlaceholder.markdown(fullResponse)
+                    chatHistory[-1]['category'] = assistantResponse['category']
+                    chatHistory.append({'role': 'assistant', 'content': fullResponse, 'category': assistantResponse['category']})
+                st.session_state[f'{self.botId}_messages'] = chatHistory              
+                #st.experimental_rerun()
+                
 
     def getAnswer(self, chatHistory):
         # TODO: Write business logic for getting answer
@@ -63,11 +92,13 @@ class ChatBox:
         queryCategoryInitial = self.getQueryCategory(lastQuery)
         if queryCategoryInitial == 'greeting':
             botAnswer = self.getGreetingsResponse(lastQuery)
-            response = {'role': 'assistant', 'content': botAnswer}
+            response = {'role': 'assistant', 'content': botAnswer, 'category': 'greeting'}
             return response
         if len(chatHistory) > 1:
             for chatIndex in range(len(chatHistory)-2, -1, -1):
                 chat = chatHistory[chatIndex]
+                if chat['category'] != 'valid':
+                    continue
                 if len(questionAnswerChain) > 5:
                     break
                 if chat['role'] == 'user':
@@ -87,17 +118,20 @@ class ChatBox:
             botAnswer = self.getGreetingsResponse(reframedQuery)
         elif queryCategory == 'invalid':
             botAnswer = f"Sorry this query seems irrelevant to my scope. I am {self.botName} and can assist you regarding information associated with the documents you uploaded.\nFor reference to my Knowledge Base, please check the left side bar of the page. Thank you."
-        response = {'role': 'assistant', 'content': botAnswer}
+        response = {'role': 'assistant', 'content': botAnswer, 'category': queryCategory}
 
         return response
     
     def getStandaloneQuestion(self, questionAnswerChain, lastQuery):
         reframerSystemMessage = f"""Given the following conversation in the form of question-answer pairs and a follow up question, rephrase the follow up question to be a standalone question.
-
+        
         Chat History:
         {questionAnswerChain}
         """
-        reframerUserMessage = f"""Follow Up Input: {lastQuery}
+        reframerUserMessage = f"""Follow Up Question: {lastQuery}
+        
+        *NOTE: Perform any Reframing Only If you think the given query is anyway referring to the previous questions present in the chat history, otherwise simply return the given query as it is.
+               Hint: Look for pronouns or in any way the given question seeks information or is similar to the preivious chats.
         Standalone question:
         """
         reframerMessages = [
@@ -110,15 +144,19 @@ class ChatBox:
                 'content': reframerUserMessage
             }
         ]
-        reframerResponse = openai.ChatCompletion.create(
-            engine = os.environ["AZURE_OPENAI_CHAT_COMPLETION_DEPLOYMENT_NAME"],
-            messages = reframerMessages,
-            temperature = 0,
-            top_p = 0,
-            max_tokens = 100
-        )
+        try:
+            reframerResponse = openai.ChatCompletion.create(
+                engine = os.environ["AZURE_OPENAI_CHAT_COMPLETION_DEPLOYMENT_NAME"],
+                messages = reframerMessages,
+                temperature = 0,
+                top_p = 0,
+                max_tokens = 100
+            )
+            standaloneQuestion = reframerResponse['choices'][0]['message']['content'].strip()
+        except:
+            standaloneQuestion = lastQuery
         
-        return reframerResponse['choices'][0]['message']['content'].strip()
+        return standaloneQuestion
     
     def getQueryCategory(self, reframedQuery):
         classifierPrompt = f"""Classify the query provider into one of these categories - [valid, greeting, invalid].
@@ -163,20 +201,21 @@ class ChatBox:
             }
         ]
         
-        greetingsResponse = openai.ChatCompletion.create(
-            engine = os.environ["AZURE_OPENAI_CHAT_COMPLETION_DEPLOYMENT_NAME"],
-            messages = conversationMessage,
-            temperature = 0,
-            top_p = 0,
-            max_tokens = 100
-        )
+        # greetingsResponse = openai.ChatCompletion.create(
+        #     engine = os.environ["AZURE_OPENAI_CHAT_COMPLETION_DEPLOYMENT_NAME"],
+        #     messages = conversationMessage,
+        #     temperature = 0,
+        #     top_p = 0,
+        #     max_tokens = 100
+        # )
         
-        return greetingsResponse['choices'][0]['message']['content'].strip()
+        # return greetingsResponse['choices'][0]['message']['content'].strip()
+        return conversationMessage
     
     def withinTokenLimit(self, text, token_limit = 16000):
         return len(self.tokenizer(text)['input_ids']) <= token_limit
     
-    def getDocumentResponse(self, reframedQuery, k = 5, docAnswerMaxTokens = 500):
+    def getDocumentResponse(self, reframedQuery, k = 5, docAnswerMaxTokens = 1500):
         relevantDocuments = self.vectorStore.similarity_search(query=reframedQuery, search_type = 'hybrid', k = k)
         
         docAnswerSystemMessage = f"""## You are {self.botName}, a friendly AI chat assistant, designed to assist the user regarding information associated with the documents they uploaded:
@@ -215,7 +254,8 @@ class ChatBox:
         - If there are multiple scenarios present in the retrieved documents related to the question, provide the answer by carefully inspecting all the scenarios in all the documents.
         - It is very likely that NOT all the retrieved documents will be relevant to the question. 
         - Use your judgement and avoid giving answers from retrieved documents which are irrelevant to the question.
-        - Your main answer body should detailed, comprehensive and with good logical explainations.
+        - Give conicise and apt answers with logical explainations.
+        - Your main answer body should be well text formatted. Always Provide your answer in a legible markdown format with proper spacings and bullet points.
         
         ## On provided references for the generated answer
         - You must also provide references to the *FILE NAME*(s) whose *FILE TEXT* were *relevant* to the question for generating the answers, in a separate paragraph.
@@ -230,7 +270,7 @@ class ChatBox:
             - *Sorry for the inconvenience, but I am not able to understand the question. Can you please add more context or reword the question. I am designed to assist you regarding information associated with the documents you uploaded. For reference to my Knowledge Base, please check the left side bar of the page. Thank You.*
         - For other normal scenarios in which you are able to provide answer, *DO NOT APPEND* the fallback message.
         """
-        queryText = "Answer the below asked question ONLY FROM THE GIVEN CONTEXT AND DO NOT USE YOUR PRIOR KNOWLEDGE OR THE INTERNET.If the answer is not in the context return the fallback response.\nQUESTION: " + reframedQuery
+        queryText = "Answer the below asked question ONLY FROM THE GIVEN CONTEXT AND DO NOT USE YOUR PRIOR KNOWLEDGE OR THE INTERNET.If the answer is not in the context return the fallback response.\nProvide a well text-formatted answer with bullets and proper spacings wherever needed.\nGive to the point concise answers.\n\nQUESTION: " + reframedQuery
         contextHeader = "CONTEXT:\n\n"
         context = ""
 
@@ -258,13 +298,14 @@ class ChatBox:
                 'content': f'{contextHeader}{context}{queryText}'
             }
         ]
-        print(f'{contextHeader}{context}{queryText}')
-        docAnswerResponse = openai.ChatCompletion.create(
-            engine = os.environ["AZURE_OPENAI_CHAT_COMPLETION_DEPLOYMENT_NAME"],
-            messages = docAnswerMessages,
-            temperature = 0,
-            top_p = 0,
-            max_tokens = docAnswerMaxTokens
-        )
         
-        return docAnswerResponse['choices'][0]['message']['content'].strip()
+        # docAnswerResponse = openai.ChatCompletion.create(
+        #     engine = os.environ["AZURE_OPENAI_CHAT_COMPLETION_DEPLOYMENT_NAME"],
+        #     messages = docAnswerMessages,
+        #     temperature = 0,
+        #     top_p = 0,
+        #     max_tokens = docAnswerMaxTokens
+        # )
+        
+        # return docAnswerResponse['choices'][0]['message']['content'].strip()
+        return docAnswerMessages
