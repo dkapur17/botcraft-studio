@@ -124,13 +124,14 @@ class ChatBox:
     
     def getStandaloneQuestion(self, questionAnswerChain, lastQuery):
         reframerSystemMessage = f"""Given the following conversation in the form of question-answer pairs and a follow up question, rephrase the follow up question to be a standalone question.
+        If the Follow up question is totally unrelated to the chat history, return the question as it is.
         
         Chat History:
         {questionAnswerChain}
         """
         reframerUserMessage = f"""Follow Up Question: {lastQuery}
         
-        *NOTE: Perform any Reframing Only If you think the given query is anyway referring to the previous questions present in the chat history, otherwise simply return the given query as it is.
+        *NOTE: Perform any Rephrasing of the given query only if you think that it is in anyway referring to the previous questions/answers present in the chat history, otherwise simply return the given query as it is.
                Hint: Look for pronouns or in any way the given question seeks information or is similar to the preivious chats.
         Standalone question:
         """
@@ -228,8 +229,6 @@ class ChatBox:
         ## On your profile and general capabilities:
         - Your responses should avoid being vague, controversial or off-topic.
         - Your logic and reasoning should be rigorous, intelligent and defensible.
-        - You should provide step-by-step well-explained instruction with examples if you are answering a question that requires a procedure.
-        - You can provide additional relevant details to respond **thoroughly** and **comprehensively** to cover multiple aspects in depth.
 
         ## On the input format that will be provided to you:
         - The input will be provided to you in two subsections.
@@ -244,16 +243,15 @@ class ChatBox:
             --- END OF FILE: "<source>" ---
         - If the <FILE TYPE> of a file is either audio or video, the <FILE TEXT DESCRIPTION> tells us about the details of the timestamps for that particular segment.
 
-        ## On your ability to answer questions based on retrieved documents:
-        - You should always leverage the retrieved documents when the user is seeking information or whenever retrieved documents could be potentially helpful, regardless of your internal knowledge or information.
-        - You should **never generate** URLs or links apart from the ones provided in retrieved documents.
+        ## On your ability to answer questions based on Context:
+        - You should always leverage the Context when the user is seeking information or whenever Context could be potentially helpful, regardless of your internal knowledge or information.
+        - You should **never generate** URLs or links apart from the ones provided in *Context*.
         - You **should always** reference factual statements to the search results.
-        - Retrieved documents may be incomplete or irrelevant. You don't make assumptions on the retrieved documents beyond strictly what's returned.
-        - If the retrieved documents do not contain sufficient information to answer user message completely, you can only include **facts from the retrieved documents** and do not add any information by itself.
-        - You must leverage information from multiple retrieved documents to respond **comprehensively**, if the answer is spread across muliple retrieved documents.
-        - If there are multiple scenarios present in the retrieved documents related to the question, provide the answer by carefully inspecting all the scenarios in all the documents.
-        - It is very likely that NOT all the retrieved documents will be relevant to the question. 
-        - Use your judgement and avoid giving answers from retrieved documents which are irrelevant to the question.
+        - *Context* may be incomplete or irrelevant. You don't make assumptions on beyond strictly what's returned.
+        - If the *Context* does not contain sufficient information to answer user message completely, you can only include **facts from the context** and do not add any information by itself.
+        - You must leverage information from multiple FILEs to respond **comprehensively**, if the answer is spread across muliple FILEs provided in the context.
+        - It is very likely that NOT all the FILEs provided in the context will be relevant to the question. 
+        - Use your judgement and avoid giving answers from FILEs which are irrelevant to the question.
         - Give conicise and apt answers with logical explainations.
         - Your main answer body should be well text formatted. Always Provide your answer in a legible markdown format with proper spacings and bullet points.
         
