@@ -3,7 +3,7 @@ import os
 from typing import List
 from azure.storage.blob import BlobServiceClient
 
-from BotCard import BotCard
+from components.BotCard import BotCard
 
 class Dashboard:
     def __init__(self) -> None:
@@ -13,19 +13,20 @@ class Dashboard:
         layout="centered")
         self.blobClient = BlobServiceClient.from_connection_string(os.environ['BLOB_STORAGE_CONNECTION_STRING'])
 
-    def display(self, router) -> None:
+    def display(self) -> None:
         st.title("BotCraft Studio")
         st.caption("Chat with an existing bot, or create a new bot")
 
         st.header("Your bots")
         bots = self._getBots()
         if st.button("Create a New Bot"):
-            router.redirect('/createBot')
+            st.session_state['activePage'] = 'createBot'
+            st.experimental_rerun()
 
         cols = st.columns(3)
         for i, botId in enumerate(bots):
             with cols[i%3]:
-                BotCard(botId).display(router)
+                BotCard(botId).display()
 
     def _getBots(self) -> List[str]:
         currentUser = st.session_state['active_user']

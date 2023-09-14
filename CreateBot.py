@@ -48,11 +48,12 @@ class CreateBot:
                                                 openai_api_version='2023-05-15',
                                                 openai_api_type='azure')
 
-    def display(self, router):
+    def display(self):
 
         st.title("BotCraft Studio") 
         if st.button('Back to Dashboard'):
-            router.redirect('/')
+            st.session_state['activePage'] = 'dashboard'
+            st.experimental_rerun()
         st.header('Create a new Bot')
 
         if 'waitingOnBotCreation' not in st.session_state:
@@ -71,7 +72,9 @@ class CreateBot:
                 botId = self.initBot(st.session_state['createBotInfo']['botName'], st.session_state['createBotInfo']['files'], statusText)
             statusText.success("Bot Created!")
             del st.session_state['waitingOnBotCreation']
-            router.redirect(f'/chat/{botId}')
+            st.session_state['activeBotId'] = botId
+            st.session_state['activePage'] = 'chat'
+            st.experimental_rerun()
 
     def initBot(self, botName, files, statusText):
         
