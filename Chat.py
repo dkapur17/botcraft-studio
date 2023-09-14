@@ -16,6 +16,6 @@ class Chat:
         if f'{botId}_messages' not in st.session_state:
             st.session_state[f'{botId}_messages'] = []
 
-    def display(self, router):
-        BotSidebar(self.botId).display(router)
+    def display(self):
+        BotSidebar(self.botId).display()
         ChatBox(self.botId).display()

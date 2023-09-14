@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_router import StreamlitRouter
 from dotenv import load_dotenv
 
 from Dashboard import Dashboard
@@ -8,22 +7,25 @@ from Chat import Chat
 
 load_dotenv()
 
-router = StreamlitRouter()
+class Router:
 
-@router.map('/', ['GET'])
-def _index():
-    Dashboard().display(router)
+    def __init__(self):
+        pass
 
-@router.map('/createBot', ['GET'])
-def _createBot():
-    CreateBot().display(router)
+    def display(self):
 
-@router.map('/chat/<string:botid>', ['GET'])
-def _chat(botid):
-   Chat(botid).display(router)
+        if 'activePage' not in st.session_state:
+            st.session_state['activePage'] = 'dashboard'
+        if st.session_state['activePage'] == 'dashboard':
+            Dashboard().display()
+        elif st.session_state['activePage'] == 'chat':
+            Chat(st.session_state['activeBotId']).display()
+        elif st.session_state['activePage'] == 'createBot':
+            CreateBot().display()
 
 
 if __name__ == "__main__":
 
     st.session_state['active_user'] = 'testuser1'
-    router.serve()
+    Router().display()
+    

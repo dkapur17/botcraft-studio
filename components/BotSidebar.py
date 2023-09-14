@@ -26,11 +26,12 @@ class BotSidebar:
         self.fileList = self.getFiles()
 
 
-    def display(self, router) -> None:
+    def display(self) -> None:
         with st.sidebar:
             if st.button("Back to Dashboard"):
                 del st.session_state[f'{self.botId}_files']
-                router.redirect('/')
+                st.session_state['activePage'] = 'dashboard'
+                st.experimental_rerun()
             st.title(self.botName)
             if st.button('Clear Chat'):
                 st.session_state[f'{self.botId}_messages'] = []
@@ -40,7 +41,7 @@ class BotSidebar:
                 if st.form_submit_button("Upload"):
                     with st.spinner('Adding Documents to Knowledge Base...'):
                         self.uploadFiles(files)
-                    st.experimental_rerun()
+                        st.experimental_rerun()
             st.subheader("Current Knowledge Base")
             fileListMD = '\n'.join([f'- {file}' for file in self.fileList])
             st.markdown(fileListMD)
