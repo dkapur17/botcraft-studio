@@ -14,7 +14,7 @@ class BotSidebar:
 
     def __init__(self, botId):        
         self.botId = botId
-        self.botName = botId.split('-')[0]
+        self.botName = botId.split('||==||')[0]
         self.textProcessor = TextProcessor()
         self.blobClient = BlobServiceClient.from_connection_string(os.environ['BLOB_STORAGE_CONNECTION_STRING'])
         self.embeddingEngine = OpenAIEmbeddings(deployment=os.environ['AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME'], 
@@ -113,7 +113,7 @@ class BotSidebar:
         ]
         vectorStore = AzureSearch(azure_search_endpoint=os.environ['AZURE_COGNITIVE_SEARCH_ENDPOINT'],
                                        azure_search_key=os.environ['AZURE_COGNITIVE_SEARCH_KEY'],
-                                       index_name=self.botId.lower(),
+                                       index_name=self.botId.split("||==||")[1].lower(),
                                        embedding_function=self.embeddingEngine.embed_query,
                                        fields = fields)
         Parallel(n_jobs=-1)(delayed(self.vectorizeAndPush)(text['src'], text['content'], text['file-type'], vectorStore) for text in texts)

@@ -49,7 +49,7 @@ def handleAuth():
         st.session_state['active_user'] = parsedUserInfo['username'].split('@')[0]
         st.session_state['active_user_name'] = parsedUserInfo['name']
     except Exception as e:
-        st.title('BotCraft Studios')
+        st.title('BotCraft Studio')
         st.error("Tried loading an invalid user")
         st.exception(e)
 

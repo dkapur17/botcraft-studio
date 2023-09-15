@@ -79,12 +79,8 @@ class CreateBot:
     def initBot(self, botName, files, statusText):
         
         botId = str(uuid4())
-        # containerClient.upload_blob(name=f'{botName}-{botId}/id.txt', data=botId, overwrite=True)
-
-        statusText.info("Creating Index...")
         containerClient = self.blobClient.get_container_client(st.session_state['active_user'])
-        self.createIndex(botName, botId)
-        statusText.empty()                                        
+        # containerClient.upload_blob(name=f'{botName}-{botId}/id.txt', data=botId, overwrite=True)                                     
         
         statusText.info("Uploading Files...")
         Parallel(n_jobs=-1)(delayed(self.uploadFile)(botName, botId, file, containerClient) for file in files)
@@ -98,15 +94,19 @@ class CreateBot:
         statusText.info("Uploading Text Content...")
         Parallel(n_jobs=-1)(delayed(self.uploadText)(botName, botId, text['src'], text['content'], containerClient) for text in texts)
         statusText.empty()
+        
+        statusText.info("Creating Index...")
+        self.createIndex(botId)
+        statusText.empty()   
 
         statusText.info("Vectorizing and Pushing to Database...")
         Parallel(n_jobs=-1)(delayed(self.vectorizeAndPush)(text['src'], text['content'], text['file-type']) for text in texts)
         statusText.empty()
 
-        return f'{botName}-{botId}'
+        return f'{botName}||==||{botId}'
 
 
-    def createIndex(self, botName, botId):
+    def createIndex(self, botId):
         fields = [
             SimpleField(name="id", type=SearchFieldDataType.String, key=True, sortable=True, filterable=True, facetable=True),
             SearchableField(name="content", type=SearchFieldDataType.String, searchable = True),
@@ -127,7 +127,7 @@ class CreateBot:
                 )
             ]
         )
-        indexName = f'{botName}-{botId}'.lower()
+        indexName = f'{botId}'.lower()
         self.vectorStore = AzureSearch(azure_search_endpoint=os.environ['AZURE_COGNITIVE_SEARCH_ENDPOINT'],
                                        azure_search_key=os.environ['AZURE_COGNITIVE_SEARCH_KEY'],
                                        index_name=indexName,
@@ -137,12 +137,12 @@ class CreateBot:
                                        )
 
     def uploadFile(self, botName, botId, file, containerClient):
-        containerClient.upload_blob(name=f'{botName}-{botId}/{file.name}', data=file, overwrite=True)
+        containerClient.upload_blob(name=f'{botName}||==||{botId}/{file.name}', data=file, overwrite=True)
     
     
     def uploadText(self, botName, botId, src, content, containerClient):
         for i, document in enumerate(content):
-            textFileName = f"{botName}-{botId}/{src.name}_{i}.txt"
+            textFileName = f"{botName}||==||{botId}/{src.name}_{i}.txt"
             containerClient.upload_blob(name=textFileName, data=document, overwrite=True)
 
     def vectorizeAndPush(self, src, content, fileType):

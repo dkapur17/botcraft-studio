@@ -29,13 +29,13 @@ class ChatBox:
 
     def __init__(self, botId):
         self.botId = botId
-        self.botName = botId.split("-")[0]
+        self.botName = botId.split("||==||")[0]
         openai.api_key=os.environ['AZURE_OPENAI_API_KEY'] 
         openai.api_base=os.environ['AZURE_OPENAI_ENDPOINT'] 
         openai.api_version='2023-05-15'
         openai.api_type='azure'
 
-        self.vectorStore = getVectorStore(self.botId.lower())
+        self.vectorStore = getVectorStore(self.botId.split("||==||")[1].lower())
         self.tokenizer = getTokenizer()
         # self.retriever = AzureSearchVectorStoreRetriever(vectorstore=self.vectorStore, search_type="hybrid", k = 5)
         

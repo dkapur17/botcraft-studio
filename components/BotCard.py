@@ -12,7 +12,7 @@ class BotCard:
 
     def display(self):
         with st.form(key=f'{self.botId}_card'):
-            botName = self.botId.split('-')[0]
+            botName = self.botId.split('||==||')[0]
             st.subheader(botName)
             buttonCols = st.columns(2)
             with buttonCols[0]:
