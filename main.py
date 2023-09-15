@@ -7,7 +7,9 @@ from Dashboard import Dashboard
 from CreateBot import CreateBot
 from Chat import Chat
 
-from cryptography.fernet import Fernet
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_v1_5
+import base64
 
 
 load_dotenv()
@@ -29,19 +31,20 @@ class Router:
         elif st.session_state['activePage'] == 'createBot':
             CreateBot().display()
 
-def handleAuth():
-    cipher_suite = Fernet(os.getenv('CIPHER_KEY').encode())
-    if 'data' not in st.experimental_get_query_params():
-        testUserInfo = json.dumps({'name': 'Test User 1', 'username': 'testuser1'})
-        encryptedUserInfo = cipher_suite.encrypt(testUserInfo.encode())
-        st.experimental_set_query_params(data=encryptedUserInfo.decode())
+def decrypt(data):
+    key = os.environ['PRIVATE_KEY'].encode()
+    data = base64.b64decode(data.encode())
+    rsakey = RSA.importKey(key)
+    rsakey = PKCS1_v1_5.new(rsakey)
+    return rsakey.decrypt(data, 'bollox').decode()
 
-    encryptedUserInfo = st.experimental_get_query_params()['data'][0].encode()
+def handleAuth():
+    if 'data' not in st.experimental_get_query_params():
+        st.experimental_set_query_params(data=os.environ['DEFAULT_USER_DATA'])
+
+    encryptedUserInfo = st.experimental_get_query_params()['data'][0]
     try:
-        if encryptedUserInfo != json.dumps({'name': 'Test User 1', 'username': 'testuser1'}).encode():
-            decryptedUserInfo = cipher_suite.decrypt(encryptedUserInfo).decode()
-        else:
-            decryptedUserInfo = json.dumps({'name': 'Test User 1', 'username': 'testuser1'})
+        decryptedUserInfo = decrypt(encryptedUserInfo)
         parsedUserInfo = json.loads(decryptedUserInfo)
         st.session_state['active_user'] = parsedUserInfo['username'].split('@')[0]
         st.session_state['active_user_name'] = parsedUserInfo['name']
