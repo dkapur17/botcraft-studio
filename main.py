@@ -1,5 +1,6 @@
 import os
 import streamlit as st
+import json
 from dotenv import load_dotenv
 
 from Dashboard import Dashboard
@@ -28,20 +29,29 @@ class Router:
         elif st.session_state['activePage'] == 'createBot':
             CreateBot().display()
 
-
-if __name__ == "__main__":
+def handleAuth():
     cipher_suite = Fernet(os.getenv('CIPHER_KEY').encode())
-    encryptedAlias = st.experimental_get_query_params()['alias'][0].encode()
+    if 'data' not in st.experimental_get_query_params():
+        testUserInfo = json.dumps({'name': 'Test User 1', 'username': 'testuser1'})
+        encryptedUserInfo = cipher_suite.encrypt(testUserInfo.encode())
+        st.experimental_set_query_params(data=encryptedUserInfo.decode())
 
+    encryptedUserInfo = st.experimental_get_query_params()['data'][0].encode()
     try:
-    # Backdoor
-        if encryptedAlias != 'testuser1'.encode():
-            decryptedAlias = cipher_suite.decrypt(encryptedAlias)
+        if encryptedUserInfo != json.dumps({'name': 'Test User 1', 'username': 'testuser1'}).encode():
+            decryptedUserInfo = cipher_suite.decrypt(encryptedUserInfo).decode()
         else:
-            decryptedAlias = encryptedAlias
-        st.session_state['active_user'] = decryptedAlias.decode()
-        Router().display()
-    except:
+            decryptedUserInfo = json.dumps({'name': 'Test User 1', 'username': 'testuser1'})
+        parsedUserInfo = json.loads(decryptedUserInfo)
+        st.session_state['active_user'] = parsedUserInfo['username'].split('@')[0]
+        st.session_state['active_user_name'] = parsedUserInfo['name']
+    except Exception as e:
         st.title('BotCraft Studios')
         st.error("Tried loading an invalid user")
-    
+        st.exception(e)
+
+
+if __name__ == "__main__":
+    handleAuth()
+    if 'active_user' in st.session_state:
+        Router().display()

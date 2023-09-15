@@ -15,16 +15,17 @@ class Dashboard:
 
     def display(self) -> None:
         st.title("BotCraft Studio")
-        st.subheader(f"Hey {st.session_state['active_user']}")
+        st.subheader(f"Hey {st.session_state['active_user_name']}")
         st.caption("Chat with an existing bot, or create a new bot")
 
         st.header("Your bots")
-        
-        with st.spinner("Fetching your bots..."):
-            bots = self._getBots()
+
         if st.button("Create a New Bot"):
             st.session_state['activePage'] = 'createBot'
             st.experimental_rerun()
+        
+        with st.spinner("Fetching your bots..."):
+            bots = self._getBots()
 
         if len(bots):
             cols = st.columns(3)
