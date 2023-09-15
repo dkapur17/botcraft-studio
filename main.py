@@ -1,9 +1,16 @@
+import os
 import streamlit as st
+import json
 from dotenv import load_dotenv
 
 from Dashboard import Dashboard
 from CreateBot import CreateBot
 from Chat import Chat
+
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_v1_5
+import base64
+
 
 load_dotenv()
 
@@ -16,6 +23,7 @@ class Router:
 
         if 'activePage' not in st.session_state:
             st.session_state['activePage'] = 'dashboard'
+
         if st.session_state['activePage'] == 'dashboard':
             Dashboard().display()
         elif st.session_state['activePage'] == 'chat':
@@ -23,9 +31,30 @@ class Router:
         elif st.session_state['activePage'] == 'createBot':
             CreateBot().display()
 
+def decrypt(data):
+    key = os.environ['PRIVATE_KEY'].encode()
+    data = base64.b64decode(data.encode())
+    rsakey = RSA.importKey(key)
+    rsakey = PKCS1_v1_5.new(rsakey)
+    return rsakey.decrypt(data, 'bollox').decode()
+
+def handleAuth():
+    if 'data' not in st.experimental_get_query_params():
+        st.experimental_set_query_params(data=os.environ['DEFAULT_USER_DATA'])
+
+    encryptedUserInfo = st.experimental_get_query_params()['data'][0]
+    try:
+        decryptedUserInfo = decrypt(encryptedUserInfo)
+        parsedUserInfo = json.loads(decryptedUserInfo)
+        st.session_state['active_user'] = parsedUserInfo['username'].split('@')[0]
+        st.session_state['active_user_name'] = parsedUserInfo['name']
+    except Exception as e:
+        st.title('BotCraft Studios')
+        st.error("Tried loading an invalid user")
+        st.exception(e)
+
 
 if __name__ == "__main__":
-
-    st.session_state['active_user'] = 'testuser1'
-    Router().display()
-    
+    handleAuth()
+    if 'active_user' in st.session_state:
+        Router().display()
