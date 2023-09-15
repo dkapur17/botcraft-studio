@@ -12,3 +12,6 @@ __pycache__
 
 /LocalTest/
 /Scratch.ipynb
+
+node_modules
+package-lock.json
