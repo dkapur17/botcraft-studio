@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+
+body {
+  margin: 0;
+  font-family: 'Rubik', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.main-header {
+  color: #eeeeee;
+  font-size: 5.5vw;
+  font-weight: 500;
+}
+
+.sub-header {
+  color: #eeeeee;
+  font-size: 1.1vw;
+}
+
+.desc {
+  color: #bbbbbb;
+  font-size: 0.8vw;
+}
