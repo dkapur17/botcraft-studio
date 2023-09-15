@@ -98,7 +98,8 @@ class MediaHandler:
                 chunkText = f"{transcriptionText}"
                 textOfAudioChunks.append(chunkText)
             except:
-                pass
+                print(transcription["AudioFileName"].replace("_", " ").lower())
+                print(transcription["Transcription"]["combinedRecognizedPhrases"])
         return textOfAudioChunks            
             
     def transcribe(self, recordingsBlobContainerUri, name, description):
@@ -203,8 +204,9 @@ class MediaHandler:
                 raise Exception(f"could not receive paginated data: status {status}")
 
 if __name__ == '__main__':
-    path = "sampleDocuments/Docker in 100 Seconds.mp4"
+    path = "sampleDocuments/E-Commerce Solution Architecture-20230914_171231-Meeting Recording.mp4"
     mediaHandler = MediaHandler()
     with open(path, mode = 'rb') as f:
         transcriptions = mediaHandler.mediaToTranscript(f, src = 'video')
-    print("\n\n".join(transcriptions))
+    with open("testTranscription.txt", mode = 'w', encoding = 'utf-8') as f:
+        f.write("\n\n".join(transcriptions))
