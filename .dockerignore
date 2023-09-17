@@ -1,0 +1,18 @@
+.git
+.gitignore
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*venv
+*.DS_Store
+*.vs
+.vscode/
+__pycache__
+
+/LocalTest/
+/Scratch.ipynb
+
+node_modules
+package-lock.json
