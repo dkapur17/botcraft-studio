@@ -1,5 +1,16 @@
-import os
 import streamlit as st
+
+# Hide unwanted components as fast as possible
+hide_st_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stDeployButton {visibility: hidden;}
+    </style>
+    """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
+import os
 import json
 from dotenv import load_dotenv
 
@@ -13,6 +24,7 @@ import base64
 
 
 load_dotenv()
+
 
 class Router:
 
@@ -49,9 +61,10 @@ def handleAuth():
         st.session_state['active_user'] = parsedUserInfo['username'].split('@')[0]
         st.session_state['active_user_name'] = parsedUserInfo['name']
     except Exception as e:
-        st.title('BotCraft Studio')
-        st.error("Tried loading an invalid user")
-        st.exception(e)
+        st.error("Can't access the app from here. Go to https://botcraftstudio.azurewebsites.net/ to access the app.")
+        # st.title('BotCraft Studio')
+        # st.error("Tried loading an invalid user")
+        # st.exception(e)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,7 @@
 import os
 import io
 import streamlit as st
-import cleantext
 import openai
-import textract
 
 from azure.core.credentials import AzureKeyCredential
 from azure.storage.blob import BlobServiceClient
@@ -28,10 +26,10 @@ load_dotenv()
 
 class CreateBot:
     def __init__(self):
-        st.set_page_config(
-        page_title="Create a new Bot",
-        page_icon=":pencil:",
-        layout="centered")
+        # st.set_page_config(
+        # page_title="Create a new Bot",
+        # page_icon=":pencil:",
+        # layout="centered")
 
         self.blobClient = BlobServiceClient.from_connection_string(os.environ['BLOB_STORAGE_CONNECTION_STRING'])
         self.textProcessor = TextProcessor()
@@ -67,14 +65,19 @@ class CreateBot:
                     st.session_state['waitingOnBotCreation'] = True
                     st.experimental_rerun()
         else:
-            with st.spinner("Creating Bot..."):
-                statusText = st.empty()
-                botId = self.initBot(st.session_state['createBotInfo']['botName'], st.session_state['createBotInfo']['files'], statusText)
-            statusText.success("Bot Created!")
-            del st.session_state['waitingOnBotCreation']
-            st.session_state['activeBotId'] = botId
-            st.session_state['activePage'] = 'chat'
-            st.experimental_rerun()
+            try:
+                with st.spinner("Creating Bot..."):
+                    statusText = st.empty()
+                    botId = self.initBot(st.session_state['createBotInfo']['botName'], st.session_state['createBotInfo']['files'], statusText)
+                statusText.success("Bot Created!")
+                del st.session_state['waitingOnBotCreation']
+                st.session_state['activeBotId'] = botId
+                st.session_state['activePage'] = 'chat'
+                st.experimental_rerun()
+            except Exception as e:
+                statusText.error("Something went wrong. Please try again.")
+                st.exception(e)
+                del st.session_state['waitingOnBotCreation']
 
     def initBot(self, botName, files, statusText):
         
