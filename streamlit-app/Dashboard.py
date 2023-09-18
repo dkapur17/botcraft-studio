@@ -7,10 +7,10 @@ from components.BotCard import BotCard
 
 class Dashboard:
     def __init__(self) -> None:
-        st.set_page_config(
-        page_title="Dashboard",
-        page_icon=":robot_face",
-        layout="centered")
+        # st.set_page_config(
+        # page_title="Dashboard",
+        # page_icon=":robot_face",
+        # layout="centered")
         self.blobClient = BlobServiceClient.from_connection_string(os.environ['BLOB_STORAGE_CONNECTION_STRING'])
 
     def display(self) -> None:
