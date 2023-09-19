@@ -51,20 +51,14 @@ def decrypt(data):
     return rsakey.decrypt(data, 'bollox').decode()
 
 def handleAuth():
-    if 'data' not in st.experimental_get_query_params():
-        st.experimental_set_query_params(data=os.environ['DEFAULT_USER_DATA'])
-
-    encryptedUserInfo = st.experimental_get_query_params()['data'][0]
     try:
+        encryptedUserInfo = st.experimental_get_query_params()['data'][0]
         decryptedUserInfo = decrypt(encryptedUserInfo)
         parsedUserInfo = json.loads(decryptedUserInfo)
         st.session_state['active_user'] = parsedUserInfo['username'].split('@')[0]
         st.session_state['active_user_name'] = parsedUserInfo['name']
     except Exception as e:
-        st.error("Can't access the app from here. Go to https://botcraftstudio.azurewebsites.net/ to access the app.")
-        # st.title('BotCraft Studio')
-        # st.error("Tried loading an invalid user")
-        # st.exception(e)
+        st.error(f"Can't access the app from here. Go to {os.environ['LANDING_PAGE_URL']} to access the app.")
 
 
 if __name__ == "__main__":

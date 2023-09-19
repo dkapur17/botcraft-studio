@@ -73,6 +73,7 @@ class BotSidebar:
     
     def uploadFile(self, botId, file, containerClient):
         print(file)
+        file.seek(0)
         containerClient.upload_blob(name=f'{botId}/{file.name}', data=file, overwrite=True)
         
     def uploadText(self, botId, src, content, containerClient):

@@ -15,6 +15,7 @@ class TextProcessor:
         self.mediaHandler = MediaHandler(blobClient=self.blobClient)
     
     def extractTextFromFiles(self, file):
+        file.seek(0)
         # Process file to get text
         if file.type in ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
             extension = {'application/pdf': 'pdf', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx'}[file.type]

@@ -71,6 +71,7 @@ class CreateBot:
                     botId = self.initBot(st.session_state['createBotInfo']['botName'], st.session_state['createBotInfo']['files'], statusText)
                 statusText.success("Bot Created!")
                 del st.session_state['waitingOnBotCreation']
+                del st.session_state['createBotInfo']
                 st.session_state['activeBotId'] = botId
                 st.session_state['activePage'] = 'chat'
                 st.experimental_rerun()
@@ -140,6 +141,7 @@ class CreateBot:
                                        )
 
     def uploadFile(self, botName, botId, file, containerClient):
+        file.seek(0)
         containerClient.upload_blob(name=f'{botName}||==||{botId}/{file.name}', data=file, overwrite=True)
     
     
